@@ -5,11 +5,11 @@ A very simple image fetcher for iOS that can be used to fetch images in scrollab
 Photos are downloaded from https://picsum.photos.
 
 # Architecture
-The whole solution is built around *ImageFetcher* class which provides an interface to fetch and cancel in progress operations. It uses in memory cache to store already donwloaded photos.
+The whole solution is built around **ImageFetcher** class which provides an interface to fetch and cancel in progress operations. It uses in memory cache to store already donwloaded photos.
 
-Each url has it's corresponding *ImageRequestTask* which is responsible for fetching the data, decoding into UIImage and resize to smaller size. The resizing is currently set to a fixed size but could be extended in the feature.
+Each url has it's corresponding **ImageRequestTask** which is responsible for fetching the data, decoding into UIImage and resize to smaller size. The resizing is currently set to a fixed size but could be extended in the feature.
 
-There is a convenient category for *UIImageView* to set an image from url. This is the entry point for UITableView use. ObjC runtime features are used to set and get associated object which helps identify what *URL* is assiciated which what UIImageView.
+There is a convenient category for **UIImageView** to set an image from url. This is the entry point for UITableView or UICollectionView use. ObjC runtime features are used to set and get associated object which helps identify what *URL* is assiciated which what UIImageView.
 
 ## Usage Example
 ```
