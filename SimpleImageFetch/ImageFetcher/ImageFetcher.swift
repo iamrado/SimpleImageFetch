@@ -12,8 +12,8 @@ final class ImageFetcher {
     private let session: URLSession
     private let cache = Cache<URL, UIImage>()
     private let queue = DispatchQueue(label: "com.iamrado.image-fetcher.queue")
-    private var inFlightTasks = [URL: ImageLoadTask]()
-    private var waitingTasks = [URL: ImageLoadTask]()
+    private var inProgressTasks = [URL: ImageLoadTask]()
+    private var readyTasks = [URL: ImageLoadTask]()
 
     static let shared = ImageFetcher()
 
@@ -31,8 +31,7 @@ final class ImageFetcher {
         }
 
         queue.async {
-            self._fetchImage(url: url,
-                             completion: { url, image in completion(.init(url: url, image: image, isFromCache: false)) })
+            self._fetchImage(url: url, completion: { completion(.init(url: $0, image: $1, isFromCache: false)) })
         }
     }
 
@@ -40,16 +39,20 @@ final class ImageFetcher {
         queue.async { self._cancel(url: url) }
     }
 
+    func clearCache() {
+        cache.removeAllObjects()
+    }
+
     private func didFinish(taskForURL url: URL, error: Error?) {
         queue.async { self._didFinish(taskForURL: url, error: error) }
     }
 
     private func _cancel(url: URL) {
-        if let task = inFlightTasks.removeValue(forKey: url) {
+        if let task = inProgressTasks.removeValue(forKey: url) {
             task.dataTask?.cancel()
         }
 
-        if let task = waitingTasks.removeValue(forKey: url) {
+        if let task = readyTasks.removeValue(forKey: url) {
             task.dataTask?.cancel()
         }
     }
@@ -57,10 +60,9 @@ final class ImageFetcher {
     private func _fetchImage(url: URL, completion: @escaping ((URL, UIImage?) -> Void)) {
         let imageTask: ImageLoadTask
 
-        if let waitingTask = waitingTasks[url] {
+        if let waitingTask = readyTasks[url] {
             imageTask = waitingTask
             imageTask.requestedTime = .now()
-            imageTask.onCompleted = completion
         } else {
             imageTask = ImageLoadTask(url,
                                       session: session,
@@ -68,26 +70,22 @@ final class ImageFetcher {
                                       onCompleted: completion)
         }
 
-        if inFlightTasks.count < maxConcurrentTasks {
+        if inProgressTasks.count < maxConcurrentTasks {
             fetchTask(imageTask)
         } else {
-            waitingTasks[url] = imageTask
+            readyTasks[url] = imageTask
         }
     }
 
     private func _didFinish(taskForURL url: URL, error: Error?) {
-        guard let task = inFlightTasks.removeValue(forKey: url) else {
-            if let image = waitingTasks[url]?.image {
-                cache.set(image, forKey: url)
-                waitingTasks.removeValue(forKey: url)
-            }
+        guard let task = inProgressTasks.removeValue(forKey: url) else {
             return
         }
 
-        assert(inFlightTasks.count < maxConcurrentTasks)
+        assert(inProgressTasks.count < maxConcurrentTasks)
 
-        if let task = waitingTasks.values.sorted(by: { (lhs, rhs) -> Bool in lhs.requestedTime > rhs.requestedTime }).first {
-            waitingTasks.removeValue(forKey: task.url)
+        if let task = readyTasks.values.randomElement() {
+            readyTasks.removeValue(forKey: task.url)
             fetchTask(task)
         }
 
@@ -101,7 +99,7 @@ final class ImageFetcher {
     }
 
     private func fetchTask(_ imageTask: ImageLoadTask) {
-        inFlightTasks[imageTask.url] = imageTask
+        inProgressTasks[imageTask.url] = imageTask
         imageTask.dataTask?.resume()
     }
 }
@@ -125,6 +123,10 @@ private final class Cache<KeyType: Hashable, ObjectType: AnyObject> {
 
     func removeObject(forKey key: KeyType) {
         storage.removeObject(forKey: Key(key))
+    }
+
+    func removeAllObjects() {
+        storage.removeAllObjects()
     }
 
     private final class Key: NSObject {
@@ -155,6 +157,7 @@ private final class ImageLoadTask {
         self.onCompleted = onCompleted
         self.dataTask = session.dataTask(with: url, completionHandler: { [weak self] (data, response, error) in
             assert(!Thread.isMainThread)
+
             guard let self = self else { return }
             self.image = data
                 .flatMap { UIImage(data: $0, scale: UIScreen.main.scale) }

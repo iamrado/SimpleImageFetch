@@ -8,7 +8,7 @@
 import Foundation
 
 final class APIClient {
-    static func fetchPhotos(page: Int = 2, limit: Int = 100, completion: @escaping (([Photo]) -> Void)) {
+    static func fetchPhotos(page: Int = 1, limit: Int = 100, completion: @escaping (([Photo]) -> Void)) {
         guard let url = URL(string: "https://picsum.photos/v2/list?page=\(page)&limit=\(limit)") else {
             fatalError()
         }

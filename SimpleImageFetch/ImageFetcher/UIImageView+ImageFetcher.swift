@@ -28,14 +28,11 @@ extension UIImageView {
 
         self.url = url
         self.image = nil
-        addPulsingAnimation()
 
         ImageFetcher.shared.fetchImage(url: url) { [weak self] imageResponse in
             assert(Thread.isMainThread)
             guard let self = self, self.url == imageResponse.url else { return }
             
-            self.removePulsingAnimation()
-
             if !imageResponse.isFromCache {
                 let animation = CABasicAnimation(keyPath: "opacity")
                 animation.duration = 0.2
@@ -45,20 +42,5 @@ extension UIImageView {
             }
             self.image = imageResponse.image
         }
-    }
-
-    private func addPulsingAnimation() {
-        let animation = CABasicAnimation(keyPath: "opacity")
-        animation.duration = 0.5
-        animation.fromValue = 0.3
-        animation.toValue = 1
-        animation.autoreverses = true
-        animation.repeatCount = .infinity
-
-        layer.add(animation, forKey: "pulseAnimation")
-    }
-
-    private func removePulsingAnimation() {
-        layer.removeAnimation(forKey: "pulseAnimation")
     }
 }
