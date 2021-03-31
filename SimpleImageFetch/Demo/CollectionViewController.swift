@@ -56,15 +56,11 @@ final class CollectionViewController: UICollectionViewController {
         }
     }
 
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        updateLayout()
-    }
-
-    private func updateLayout() {
-        let itemsPerLine: CGFloat = 3.0
-        let interItemSpacing: CGFloat = 12
-        let width = (view.frame.width - (interItemSpacing * itemsPerLine - 1)) / itemsPerLine
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        let itemsPerLine: CGFloat = 3
+        let interItemSpacing: CGFloat = 1
+        let width = (view.frame.width - (interItemSpacing * (itemsPerLine - 1))) / itemsPerLine
         layout.minimumLineSpacing = interItemSpacing
         layout.minimumInteritemSpacing = interItemSpacing
         layout.itemSize = .init(width: width, height: width)
