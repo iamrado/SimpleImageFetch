@@ -30,9 +30,7 @@ final class ImageFetcher {
             return
         }
 
-        queue.async {
-            self._fetchImage(url: url, completion: { completion(.init(url: $0, image: $1, isFromCache: false)) })
-        }
+        queue.async { self._fetchImage(url: url, completion: completion) }
     }
 
     func cancel(url: URL) {
@@ -57,17 +55,15 @@ final class ImageFetcher {
         }
     }
 
-    private func _fetchImage(url: URL, completion: @escaping ((URL, UIImage?) -> Void)) {
+    private func _fetchImage(url: URL, completion: @escaping ((ImageResponse) -> Void)) {
         let imageTask: ImageLoadTask
 
         if let waitingTask = readyTasks[url] {
             imageTask = waitingTask
             imageTask.requestedTime = .now()
         } else {
-            imageTask = ImageLoadTask(url,
-                                      session: session,
-                                      onFinished: { [weak self] in self?.didFinish(taskForURL: url, error: $0) },
-                                      onCompleted: completion)
+            imageTask = ImageLoadTask(url, session: session, onFinished: didFinish(taskForURL:error:))
+            imageTask.onCompleted = completion
         }
 
         if inProgressTasks.count < maxConcurrentTasks {
@@ -93,8 +89,9 @@ final class ImageFetcher {
             cache.set(image, forKey: url)
         }
 
+        let response = ImageResponse(url: task.url, image: task.image, isFromCache: false)
         DispatchQueue.main.async {
-            task.onCompleted(url, task.image)
+            task.onCompleted?(response)
         }
     }
 
@@ -145,24 +142,24 @@ private final class Cache<KeyType: Hashable, ObjectType: AnyObject> {
 
 private final class ImageLoadTask {
     let url: URL
-    var requestedTime: DispatchTime
-    var onCompleted: ((URL, UIImage?) -> Void)
     var size = CGSize(width: 300, height: 300)
+    var requestedTime: DispatchTime
+    var onCompleted: ((ImageResponse) -> Void)?
     private(set) var dataTask: URLSessionDataTask?
     private(set) var image: UIImage?
 
-    init(_ url: URL, session: URLSession, onFinished: @escaping ((Error?) -> Void), onCompleted: @escaping ((URL, UIImage?) -> Void)) {
+    init(_ url: URL, session: URLSession, onFinished: @escaping ((URL, Error?) -> Void)) {
         self.url = url
         self.requestedTime = .now()
-        self.onCompleted = onCompleted
-        self.dataTask = session.dataTask(with: url, completionHandler: { [weak self] (data, response, error) in
+        self.dataTask = session.dataTask(with: url, completionHandler: { [weak self] data, response, error in
             assert(!Thread.isMainThread)
-
             guard let self = self else { return }
+
             self.image = data
                 .flatMap { UIImage(data: $0, scale: UIScreen.main.scale) }
                 .map { $0.scaled(to: self.size)}
-            onFinished(error)
+
+            onFinished(url, error)
         })
     }
 }
